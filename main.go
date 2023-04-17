@@ -1,11 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	"log"
-	"net/http"
 	"os"
 
 	"github.com/urfave/cli/v2"
@@ -49,7 +45,89 @@ func main() {
 			EnvVars: []string{"PLUGIN_DEVICE"},
 			Usage:   "The name of one of your Pushover devices",
 		},
+		&cli.StringFlag{
+			Name:    "repo.name",
+			EnvVars: []string{"DRONE_REPO_NAME"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.sha",
+			EnvVars: []string{"DRONE_COMMIT_SHA"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.ref",
+			EnvVars: []string{"DRONE_COMMIT_REF"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.branch",
+			EnvVars: []string{"DRONE_COMMIT_BRANCH"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.author",
+			EnvVars: []string{"DRONE_COMMIT_AUTHOR"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.author.email",
+			Usage:   "git author email",
+			EnvVars: []string{"DRONE_COMMIT_AUTHOR_EMAIL"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.author.avatar",
+			EnvVars: []string{"DRONE_COMMIT_AUTHOR_AVATAR"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.author.name",
+			EnvVars: []string{"DRONE_COMMIT_AUTHOR_NAME"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.pull",
+			EnvVars: []string{"DRONE_PULL_REQUEST"},
+		},
+		&cli.StringFlag{
+			Name:    "commit.message",
+			EnvVars: []string{"DRONE_COMMIT_MESSAGE"},
+		},
+		&cli.StringFlag{
+			Name:    "build.event",
+			EnvVars: []string{"DRONE_BUILD_EVENT"},
+		},
+		&cli.IntFlag{
+			Name:    "build.number",
+			EnvVars: []string{"DRONE_BUILD_NUMBER"},
+		},
+		&cli.IntFlag{
+			Name:    "build.parent",
+			EnvVars: []string{"DRONE_BUILD_PARENT"},
+		},
+		&cli.StringFlag{
+			Name:    "build.status",
+			EnvVars: []string{"DRONE_BUILD_STATUS"},
+		},
+		&cli.StringFlag{
+			Name:    "build.link",
+			EnvVars: []string{"DRONE_BUILD_LINK"},
+		},
+		&cli.Int64Flag{
+			Name:    "build.started",
+			EnvVars: []string{"DRONE_BUILD_STARTED"},
+		},
+		&cli.Int64Flag{
+			Name:    "build.created",
+			EnvVars: []string{"DRONE_BUILD_CREATED"},
+		},
+		&cli.StringFlag{
+			Name:    "build.tag",
+			EnvVars: []string{"DRONE_TAG"},
+		},
+		&cli.StringFlag{
+			Name:    "build.deployTo",
+			EnvVars: []string{"DRONE_DEPLOY_TO"},
+		},
+		&cli.Int64Flag{
+			Name:    "job.started",
+			EnvVars: []string{"DRONE_JOB_STARTED"},
+		},
 	}
+
 	app.Action = run
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
@@ -57,30 +135,43 @@ func main() {
 }
 
 func run(c *cli.Context) error {
-	data := map[string]string{
-		"token":   c.String("token"),
-		"user":    c.String("user"),
-		"message": c.String("message"),
-		"title":   c.String("title"),
-		"device":  c.String("device"),
+	plugin := Plugin{
+		Repo: Repo{
+			Owner: c.String("repo.owner"),
+			Name:  c.String("repo.name"),
+		},
+		Build: Build{
+			Tag:    c.String("build.tag"),
+			Number: c.Int("build.number"),
+			Parent: c.Int("build.parent"),
+			Event:  c.String("build.event"),
+			Status: c.String("build.status"),
+			Commit: c.String("commit.sha"),
+			Ref:    c.String("commit.ref"),
+			Branch: c.String("commit.branch"),
+			Author: Author{
+				Username: c.String("commit.author"),
+				Name:     c.String("commit.author.name"),
+				Email:    c.String("commit.author.email"),
+				Avatar:   c.String("commit.author.avatar"),
+			},
+			Pull:     c.String("commit.pull"),
+			Message:  c.String("commit.message"),
+			DeployTo: c.String("build.deployTo"),
+			Link:     c.String("build.link"),
+			Started:  c.Int64("build.started"),
+			Created:  c.Int64("build.created"),
+		},
+		Job: Job{
+			Started: c.Int64("job.started"),
+		},
+		Config: Config{
+			Token:   c.String("token"),
+			User:    c.String("user"),
+			Message: c.String("message"),
+			Title:   c.String("title"),
+			Device:  c.String("device"),
+		},
 	}
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	request, err := http.NewRequest("POST", "https://api.pushover.net/1/messages.json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != 200 {
-		return fmt.Errorf("pushover API returned status code %d", response.StatusCode)
-	}
-	return nil
+	return plugin.Exec()
 }
